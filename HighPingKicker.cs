@@ -9,12 +9,13 @@ using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using Microsoft.Extensions.Logging;
 
 namespace HighPingKicker;
+
 [MinimumApiVersion(300)]
 
 public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
 {
     public override string ModuleName => "High Ping Kicker";
-    public override string ModuleVersion => "0.0.7";
+    public override string ModuleVersion => "0.0.8";
     public override string ModuleAuthor => "conch (forked by luca.uy)";
     public override string ModuleDescription => "Kicks users with high ping";
 
@@ -25,10 +26,11 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
         public Timer? Timer { get; set; }
         public bool IsInGracePeriod { get; set; } = true;
         public bool IsAdmin { get; set; } = false;
+        public bool IsWhitelisted { get; set; } = false;
         public int WarningsGiven { get; set; } = 0;
         public bool IsImmune
         {
-            get => this.IsAdmin || this.IsInGracePeriod;
+            get => this.IsAdmin || this.IsInGracePeriod || this.IsWhitelisted;
         }
     }
 
@@ -47,11 +49,12 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
     }
     private List<CCSPlayerController> GetPlayers()
     {
-        return Utilities.GetPlayers().FindAll(p => p is { 
-            IsValid: true, 
-            IsBot: false, 
-            IsHLTV: false, 
-            Connected: PlayerConnectedState.PlayerConnected 
+        return Utilities.GetPlayers().FindAll(p => p is
+        {
+            IsValid: true,
+            IsBot: false,
+            IsHLTV: false,
+            Connected: PlayerConnectedState.PlayerConnected
         });
     }
 
@@ -89,8 +92,17 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
         }
         playerInfo.IsInGracePeriod = true;
         playerInfo.WarningsGiven = 0;
+        playerInfo.IsWhitelisted = IsPlayerWhitelisted(player);
         playerInfo.Timer?.Kill();
         playerInfo.Timer = new Timer(Config.GracePeriod, () => playerInfo.IsInGracePeriod = false);
+    }
+
+    private bool IsPlayerWhitelisted(CCSPlayerController player)
+    {
+        if (player.SteamID == 0) return false;
+
+        string steamId64 = player.SteamID.ToString();
+        return Config.Whitelist.Contains(steamId64);
     }
 
     private void CheckPings()
@@ -103,13 +115,13 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
         }
         GetPlayers().ForEach(CheckPing);
         if (Config.EnableDebug)
-        { 
+        {
             Logger.LogInformation("-------------------------------");
         }
     }
 
     private void CheckPing(CCSPlayerController player)
-    { 
+    {
         if (Config.EnableDebug)
             Logger.LogInformation("Name: {name}, Ping: {ping}, SteamID: {steamid}, Slot: {slot}", player.PlayerName, player.Ping, player.SteamID, player.Slot);
 
@@ -128,7 +140,11 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
         }
 
         if (playerInfo.IsImmune)
-        { 
+        {
+            if (Config.EnableDebug && playerInfo.IsWhitelisted)
+            {
+                Logger.LogInformation("Player {name} is whitelisted, skipping ping check", player.PlayerName);
+            }
             return;
         }
 
@@ -136,20 +152,21 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
             HandleExcessivePing(player, playerInfo);
 
     }
-    
+
     public void HandleExcessivePing(CCSPlayerController player, PlayerInfo playerInfo)
-    { 
-        playerInfo.WarningsGiven++; 
+    {
+        playerInfo.WarningsGiven++;
         if (playerInfo.WarningsGiven > Config.MaxWarnings)
         {
             Server.ExecuteCommand($"kickid {player.UserId}");
             if (Config.ShowPublicKickMessage)
             {
-                var kickMessage = ParseMessageTemplate(player, playerInfo, Config.KickMessage); 
+                var kickMessage = ParseMessageTemplate(player, playerInfo, Config.KickMessage);
                 Server.PrintToChatAll(kickMessage);
             }
-        } else
-        { 
+        }
+        else
+        {
             if (Config.ShowWarnings)
             {
                 var warningMessage = ParseMessageTemplate(player, playerInfo, Config.WarningMessage);
@@ -158,7 +175,7 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
         }
     }
 
-    public string ParseMessageTemplate(CCSPlayerController player, PlayerInfo playerInfo,  string message)
+    public string ParseMessageTemplate(CCSPlayerController player, PlayerInfo playerInfo, string message)
     {
         return message
             .Replace("{NAME}", player.PlayerName)
