@@ -25,10 +25,29 @@ When the plugin is first loaded, the following config will be generated in `coun
    "warning_message": "You will be kicked for excessive ping. You have {WARN} out of {MAXWARN} warnings.",
    "kick_message": "{NAME} has been kicked due to excessive ping.",
    "grace_period_seconds": 90,
+   "whitelist": [],
    "EnableDebug": false,
    "ConfigVersion": 2,
 }
 ```
+
+## Whitelist Configuration
+The whitelist allows you to exclude specific players from being kicked for high ping. Add SteamID64 values to the whitelist array:
+
+```json
+{
+   "whitelist": [
+      "76561199000000000",
+      "76561299000000000",
+      "76561399000000000"
+   ]
+}
+```
+
+### How to get SteamID64
+1. Go to [SteamID.xyz](https://steamid.xyz/)
+2. Enter the player's Steam profile URL or Steam username
+3. Copy the SteamID64 value (17-digit number starting with 765611...)
 
 ### Configurable messages
 
