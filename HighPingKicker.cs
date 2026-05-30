@@ -1,38 +1,28 @@
 ﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Admin;
-using CounterStrikeSharp.API.Modules.Timers;
-using CounterStrikeSharp.API.Modules.Entities;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using Microsoft.Extensions.Logging;
 
+using HighPingKicker.Utils;
+using HighPingKicker.Models;
+using HighPingKicker.Configs;
+
 namespace HighPingKicker;
 
-[MinimumApiVersion(300)]
-
+[MinimumApiVersion(369)]
 public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
 {
     public override string ModuleName => "High Ping Kicker";
-    public override string ModuleVersion => "0.0.8";
+    public override string ModuleVersion => "0.0.9";
     public override string ModuleAuthor => "conch (forked by luca.uy)";
     public override string ModuleDescription => "Kicks users with high ping";
 
     public BaseConfigs Config { get; set; } = new();
     public Dictionary<int, PlayerInfo> Slots = new();
-    public class PlayerInfo
-    {
-        public Timer? Timer { get; set; }
-        public bool IsInGracePeriod { get; set; } = true;
-        public bool IsAdmin { get; set; } = false;
-        public bool IsWhitelisted { get; set; } = false;
-        public int WarningsGiven { get; set; } = 0;
-        public bool IsImmune
-        {
-            get => this.IsAdmin || this.IsInGracePeriod || this.IsWhitelisted;
-        }
-    }
+
 
     public void OnConfigParsed(BaseConfigs config)
     {
@@ -54,7 +44,7 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
             IsValid: true,
             IsBot: false,
             IsHLTV: false,
-            Connected: PlayerConnectedState.PlayerConnected
+            Connected: PlayerConnectedState.Connected
         });
     }
 
@@ -64,13 +54,6 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
         {
             AddTimer(Config.CheckInterval, CheckPings, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
         });
-    }
-    public override void Unload(bool hotReload)
-    {
-        foreach (var slot in Slots)
-        {
-            slot.Value?.Timer?.Kill();
-        }
     }
 
     [GameEventHandler]
@@ -107,17 +90,8 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
 
     private void CheckPings()
     {
-        if (Config.EnableDebug)
-        {
-            Logger.LogInformation("-------------------------------");
-            Logger.LogInformation("Checking player's pings");
-            Logger.LogInformation("-------------------------------");
-        }
+        Logger.LogDebug("Checking player's pings");
         GetPlayers().ForEach(CheckPing);
-        if (Config.EnableDebug)
-        {
-            Logger.LogInformation("-------------------------------");
-        }
     }
 
     private void CheckPing(CCSPlayerController player)
@@ -183,5 +157,13 @@ public class HighPingKickerPlugin : BasePlugin, IPluginConfig<BaseConfigs>
             .Replace("{MAXWARN}", Config.MaxWarnings.ToString())
             .Replace("{PING}", player.Ping.ToString())
             .Replace("{MAXPING}", Config.MaxPing.ToString());
+    }
+
+    public override void Unload(bool hotReload)
+    {
+        foreach (var slot in Slots)
+        {
+            slot.Value?.Timer?.Kill();
+        }
     }
 }

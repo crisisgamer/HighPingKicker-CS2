@@ -1,7 +1,7 @@
 using CounterStrikeSharp.API.Core;
 using System.Text.Json.Serialization;
 
-namespace HighPingKicker;
+namespace HighPingKicker.Configs;
 
 public class BaseConfigs : BasePluginConfig
 {
